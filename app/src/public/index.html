@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StreamHeadless</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f0f1a;
+      --surface:   #1a1a2e;
+      --border:    #2a2a4a;
+      --text:      #e0e0e0;
+      --muted:     #888;
+      --accent:    #6366f1;
+      --accent-h:  #4f52d4;
+      --green:     #22c55e;
+      --red:       #ef4444;
+      --yellow:    #eab308;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ────────────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.02em;
+    }
+
+    header .right {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    /* ── Buttons ───────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.45rem 0.9rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-primary  { background: var(--accent);  color: #fff; }
+    .btn-primary:hover:not(:disabled)  { background: var(--accent-h); }
+
+    .btn-success  { background: #166534; color: var(--green); }
+    .btn-success:hover:not(:disabled)  { background: #14532d; }
+
+    .btn-danger   { background: #7f1d1d; color: var(--red); }
+    .btn-danger:hover:not(:disabled)   { background: #6b1616; }
+
+    .btn-ghost    { background: var(--border); color: var(--text); }
+    .btn-ghost:hover:not(:disabled)    { background: #3a3a5a; }
+
+    .btn-vnc      { background: #1e3a5f; color: #60a5fa; }
+    .btn-vnc:hover:not(:disabled)      { background: #1a3158; }
+
+    .btn-sm { padding: 0.3rem 0.65rem; font-size: 0.78rem; }
+
+    /* ── Main layout ───────────────────────────────────────────── */
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .toolbar h2 { font-size: 1rem; color: var(--muted); font-weight: 400; }
+
+    /* ── Stream cards ──────────────────────────────────────────── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.25rem 1rem;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.8rem;
+    }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      word-break: break-word;
+      flex: 1;
+      margin-right: 0.5rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      flex-shrink: 0;
+    }
+
+    .badge-running { background: #14532d; color: var(--green); }
+    .badge-stopped { background: #2a2a4a; color: var(--muted); }
+
+    .badge .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+    }
+
+    .badge-running .dot { background: var(--green); animation: pulse 1.5s infinite; }
+    .badge-stopped .dot { background: var(--muted); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+
+    .card-meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card-meta span { color: #aaa; }
+
+    .card-detail {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      flex-wrap: wrap;
+    }
+
+    .card-detail .chip {
+      background: #12122a;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.2rem 0.5rem;
+      color: #bbb;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    /* ── Empty state ───────────────────────────────────────────── */
+    .empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 4rem 1rem;
+      color: var(--muted);
+    }
+
+    .empty p { font-size: 0.95rem; margin-top: 0.5rem; }
+
+    /* ── Modal ─────────────────────────────────────────────────── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 1rem;
+    }
+
+    .overlay.hidden { display: none; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 1.75rem;
+    }
+
+    .modal h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 1.25rem;
+    }
+
+    .form-group { margin-bottom: 1rem; }
+
+    .form-group label {
+      display: block;
+      font-size: 0.8rem;
+      color: #aaa;
+      margin-bottom: 0.35rem;
+    }
+
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 0.6rem 0.85rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus { border-color: var(--accent); }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .form-check {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-top: 0.3rem;
+    }
+
+    .form-check input[type="checkbox"] {
+      width: 16px; height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .form-check label {
+      font-size: 0.88rem;
+      color: var(--text);
+      cursor: pointer;
+      margin: 0;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+
+    /* ── Toasts ─────────────────────────────────────────────────── */
+    #toastContainer {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      z-index: 200;
+    }
+
+    .toast {
+      padding: 0.65rem 1rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      max-width: 320px;
+      animation: slideIn 0.2s ease;
+    }
+
+    .toast-ok  { background: #14532d; color: var(--green); border: 1px solid #166534; }
+    .toast-err { background: #7f1d1d; color: var(--red);   border: 1px solid #991b1b; }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to   { transform: translateX(0);   opacity: 1; }
+    }
+
+    .hint { font-size: 0.75rem; color: var(--muted); margin-top: 0.3rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>StreamHeadless</h1>
+  <div class="right">
+    <button class="btn btn-primary" id="btnNew">+ New Stream</button>
+    <button class="btn btn-ghost" id="btnLogout">Logout</button>
+  </div>
+</header>
+
+<main>
+  <div class="toolbar">
+    <h2 id="streamCount">Loading…</h2>
+  </div>
+  <div class="grid" id="streamGrid"></div>
+</main>
+
+<!-- Modal: Add / Edit stream -->
+<div class="overlay hidden" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">New Stream</h3>
+    <form id="streamForm">
+      <input type="hidden" id="streamId">
+
+      <div class="form-group">
+        <label for="fName">Name</label>
+        <input id="fName" type="text" placeholder="My Twitch Stream" required>
+      </div>
+
+      <div class="form-group">
+        <label for="fUrl">Web Page URL</label>
+        <input id="fUrl" type="url" placeholder="https://example.com/stream-source" required>
+      </div>
+
+      <div class="form-group">
+        <label for="fRtmp">RTMP URL (including stream key)</label>
+        <input id="fRtmp" type="text"
+          placeholder="rtmp://live.twitch.tv/app/live_XXXXX_XXXXXXXXXX" required>
+        <p class="hint">Twitch: rtmp://live.twitch.tv/app/&lt;streamkey&gt;&nbsp;&nbsp;
+          YouTube: rtmp://a.rtmp.youtube.com/live2/&lt;streamkey&gt;</p>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="fResolution">Resolution</label>
+          <select id="fResolution">
+            <option value="480p">480p (854×480)</option>
+            <option value="720p" selected>720p (1280×720)</option>
+            <option value="1080p">1080p (1920×1080)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="fBitrate">Video Bitrate (kbps)</label>
+          <input id="fBitrate" type="number" min="500" max="12000" value="2500">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="fAudio">Audio Channels</label>
+          <select id="fAudio">
+            <option value="2" selected>Stereo (2ch)</option>
+            <option value="1">Mono (1ch)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <div class="form-check" style="padding-top:0.55rem">
+            <input type="checkbox" id="fAddressBar">
+            <label for="fAddressBar">Show address bar</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="btnCancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btnSave">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script>
+  // ── API helpers ────────────────────────────────────────────────
+  async function api(method, path, body) {
+    const res = await fetch(path, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    return data;
+  }
+
+  // ── Toast ──────────────────────────────────────────────────────
+  function toast(msg, ok = true) {
+    const el = document.createElement('div');
+    el.className = `toast ${ok ? 'toast-ok' : 'toast-err'}`;
+    el.textContent = msg;
+    document.getElementById('toastContainer').appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+
+  // ── Render ─────────────────────────────────────────────────────
+  function truncate(s, n = 50) {
+    return s.length > n ? s.slice(0, n) + '…' : s;
+  }
+
+  function renderStreams(streams) {
+    const grid = document.getElementById('streamGrid');
+    const count = document.getElementById('streamCount');
+    count.textContent = `${streams.length} stream${streams.length !== 1 ? 's' : ''}`;
+
+    if (streams.length === 0) {
+      grid.innerHTML = `<div class="empty">
+        <div style="font-size:2.5rem">📡</div>
+        <p>No streams yet. Click <strong>+ New Stream</strong> to get started.</p>
+      </div>`;
+      return;
+    }
+
+    grid.innerHTML = streams.map(s => {
+      const running = s.status === 'running';
+      const audioLabel = s.audio_channels === 1 ? 'Mono' : 'Stereo';
+      const addrLabel  = s.show_address_bar ? 'Address bar' : 'App mode';
+
+      return `<div class="card" data-id="${s.id}">
+        <div class="card-header">
+          <div class="card-title">${esc(s.name)}</div>
+          <span class="badge ${running ? 'badge-running' : 'badge-stopped'}">
+            <span class="dot"></span>${running ? 'Live' : 'Stopped'}
+          </span>
+        </div>
+
+        <div class="card-meta" title="${esc(s.url)}">
+          URL: <span>${esc(truncate(s.url, 45))}</span>
+        </div>
+        <div class="card-meta" title="${esc(s.rtmp_url)}">
+          RTMP: <span>${esc(rtmpDomain(s.rtmp_url))}</span>
+        </div>
+
+        <div class="card-detail">
+          <span class="chip">${esc(s.resolution)}</span>
+          <span class="chip">${s.bitrate} kbps</span>
+          <span class="chip">${audioLabel}</span>
+          <span class="chip">${addrLabel}</span>
+        </div>
+
+        <div class="card-actions">
+          ${running
+            ? `<button class="btn btn-danger btn-sm" onclick="stopStream(${s.id})">⏹ Stop</button>`
+            : `<button class="btn btn-success btn-sm" onclick="startStream(${s.id})">▶ Start</button>`
+          }
+          ${running
+            ? `<button class="btn btn-vnc btn-sm" onclick="openVnc(${s.display_num})">🖥 VNC</button>`
+            : ''
+          }
+          <button class="btn btn-ghost btn-sm" onclick="editStream(${s.id})"
+            ${running ? 'disabled title="Stop stream to edit"' : ''}>✏ Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteStream(${s.id})"
+            style="background:#1a1a2e;border:1px solid #7f1d1d"
+            ${running ? 'disabled title="Stop stream to delete"' : ''}>🗑 Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function rtmpDomain(url) {
+    try { return new URL(url).hostname; } catch { return truncate(url, 30); }
+  }
+
+  // ── Load data ─────────────────────────────────────────────────
+  async function loadStreams() {
+    try {
+      const streams = await api('GET', '/api/streams');
+      renderStreams(streams);
+    } catch (e) {
+      if (e.message.includes('401') || e.message.includes('Unauthorized')) {
+        window.location.href = '/login.html';
+      }
+    }
+  }
+
+  // Poll every 5 seconds to refresh status
+  setInterval(loadStreams, 5000);
+  loadStreams();
+
+  // ── Stream actions ─────────────────────────────────────────────
+  window.startStream = async (id) => {
+    try {
+      await api('POST', `/api/streams/${id}/start`);
+      toast('Stream started');
+      loadStreams();
+    } catch (e) { toast(e.message, false); }
+  };
+
+  window.stopStream = async (id) => {
+    try {
+      await api('POST', `/api/streams/${id}/stop`);
+      toast('Stream stopped');
+      loadStreams();
+    } catch (e) { toast(e.message, false); }
+  };
+
+  window.deleteStream = async (id) => {
+    if (!confirm('Delete this stream?')) return;
+    try {
+      await api('DELETE', `/api/streams/${id}`);
+      toast('Stream deleted');
+      loadStreams();
+    } catch (e) { toast(e.message, false); }
+  };
+
+  window.openVnc = (displayNum) => {
+    const path = `/novnc/vnc.html?path=vnc/${displayNum}/websockify&autoconnect=true&reconnect=true&resize=remote`;
+    window.open(path, '_blank');
+  };
+
+  // ── Modal ──────────────────────────────────────────────────────
+  const overlay = document.getElementById('modalOverlay');
+
+  function openModal(stream = null) {
+    document.getElementById('streamId').value       = stream ? stream.id : '';
+    document.getElementById('fName').value          = stream ? stream.name : '';
+    document.getElementById('fUrl').value           = stream ? stream.url : '';
+    document.getElementById('fRtmp').value          = stream ? stream.rtmp_url : '';
+    document.getElementById('fResolution').value    = stream ? stream.resolution : '720p';
+    document.getElementById('fBitrate').value       = stream ? stream.bitrate : 2500;
+    document.getElementById('fAudio').value         = stream ? String(stream.audio_channels) : '2';
+    document.getElementById('fAddressBar').checked  = stream ? !!stream.show_address_bar : false;
+    document.getElementById('modalTitle').textContent = stream ? 'Edit Stream' : 'New Stream';
+    overlay.classList.remove('hidden');
+  }
+
+  function closeModal() { overlay.classList.add('hidden'); }
+
+  window.editStream = async (id) => {
+    try {
+      const streams = await api('GET', '/api/streams');
+      const s = streams.find(x => x.id === id);
+      if (s) openModal(s);
+    } catch (e) { toast(e.message, false); }
+  };
+
+  document.getElementById('btnNew').addEventListener('click', () => openModal());
+  document.getElementById('btnCancel').addEventListener('click', closeModal);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+  document.getElementById('streamForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('streamId').value;
+    const payload = {
+      name:             document.getElementById('fName').value,
+      url:              document.getElementById('fUrl').value,
+      rtmp_url:         document.getElementById('fRtmp').value,
+      resolution:       document.getElementById('fResolution').value,
+      bitrate:          parseInt(document.getElementById('fBitrate').value, 10),
+      audio_channels:   parseInt(document.getElementById('fAudio').value, 10),
+      show_address_bar: document.getElementById('fAddressBar').checked,
+    };
+
+    try {
+      if (id) {
+        await api('PUT', `/api/streams/${id}`, payload);
+        toast('Stream updated');
+      } else {
+        await api('POST', '/api/streams', payload);
+        toast('Stream created');
+      }
+      closeModal();
+      loadStreams();
+    } catch (e) { toast(e.message, false); }
+  });
+
+  // ── Logout ─────────────────────────────────────────────────────
+  document.getElementById('btnLogout').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/login.html';
+  });
+</script>
+</body>
+</html>

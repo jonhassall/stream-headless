@@ -1,0 +1,26 @@
+services:
+  app:
+    build: ./app
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - data:/data
+      - /dev/shm:/dev/shm
+    expose:
+      - "3000"
+      - "6901"
+      - "6902"
+      - "6903"
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+
+volumes:
+  data:

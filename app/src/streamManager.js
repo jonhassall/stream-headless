@@ -144,11 +144,12 @@ async function startStream(stream) {
 
   // 3 — FFmpeg (with auto-restart on unexpected exit)
   const ac = stream.audio_channels === 1 ? '1' : '2';
+  const fps = stream.framerate || 30;
   const ffmpegArgs = [
     '-loglevel', 'warning',
     // Video: capture Xvfb display
     '-f', 'x11grab',
-    '-framerate', '30',
+    '-framerate', String(fps),
     '-thread_queue_size', '512',
     '-video_size', `${w}x${h}`,
     '-draw_mouse', '0',
@@ -166,7 +167,7 @@ async function startStream(stream) {
     '-maxrate', `${stream.bitrate}k`,
     '-bufsize', `${stream.bitrate * 2}k`,
     '-x264-params', 'nal-hrd=cbr:force-cfr=1',
-    '-g', '30',
+    '-g', String(fps),  // keyframe every 1 second
     // Audio encoding
     '-c:a', 'aac',
     '-af', 'aresample=async=1:min_hard_comp=0.100000:first_pts=0',

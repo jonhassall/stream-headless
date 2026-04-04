@@ -15,7 +15,7 @@ router.get('/', (req, res) => {
 
 // POST /api/streams — create a new stream
 router.post('/', (req, res) => {
-  const { name, url, rtmp_url, resolution, bitrate, audio_channels, show_address_bar } = req.body;
+  const { name, url, rtmp_url, resolution, bitrate, audio_channels, show_address_bar, framerate } = req.body;
 
   if (!name || !url || !rtmp_url) {
     return res.status(400).json({ error: 'name, url, and rtmp_url are required' });
@@ -29,6 +29,7 @@ router.post('/', (req, res) => {
     bitrate:          parseInt(bitrate || 2500, 10),
     audio_channels:   parseInt(audio_channels || 2, 10),
     show_address_bar: show_address_bar ? 1 : 0,
+    framerate:        parseInt(framerate || 30, 10),
   });
 
   res.status(201).json(db.getById(result.lastInsertRowid));
@@ -43,7 +44,7 @@ router.put('/:id', (req, res) => {
     return res.status(409).json({ error: 'Stop the stream before editing' });
   }
 
-  const { name, url, rtmp_url, resolution, bitrate, audio_channels, show_address_bar } = req.body;
+  const { name, url, rtmp_url, resolution, bitrate, audio_channels, show_address_bar, framerate } = req.body;
 
   db.update(id, {
     name:             name             ?? stream.name,
@@ -55,6 +56,7 @@ router.put('/:id', (req, res) => {
     show_address_bar: show_address_bar !== undefined
                         ? (show_address_bar ? 1 : 0)
                         : stream.show_address_bar,
+    framerate:        parseInt(framerate ?? stream.framerate ?? 30, 10),
   });
 
   res.json(db.getById(id));

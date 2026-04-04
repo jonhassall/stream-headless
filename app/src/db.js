@@ -25,9 +25,13 @@ db.exec(`
     show_address_bar INTEGER NOT NULL DEFAULT 0,
     status           TEXT    NOT NULL DEFAULT 'stopped',
     display_num      INTEGER,
+    framerate        INTEGER NOT NULL DEFAULT 30,
     created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
   )
 `);
+
+// Migrate existing databases that predate the framerate column
+try { db.exec(`ALTER TABLE streams ADD COLUMN framerate INTEGER NOT NULL DEFAULT 30`); } catch (_) {}
 
 const getAll = () =>
   db.prepare('SELECT * FROM streams ORDER BY id').all();
@@ -38,20 +42,21 @@ const getById = (id) =>
 const getRunning = () =>
   db.prepare("SELECT * FROM streams WHERE status = 'running'").all();
 
-const create = ({ name, url, rtmp_url, resolution, bitrate, audio_channels, show_address_bar }) =>
+const create = ({ name, url, rtmp_url, resolution, bitrate, audio_channels, show_address_bar, framerate }) =>
   db.prepare(`
-    INSERT INTO streams (name, url, rtmp_url, resolution, bitrate, audio_channels, show_address_bar)
-    VALUES (@name, @url, @rtmp_url, @resolution, @bitrate, @audio_channels, @show_address_bar)
-  `).run({ name, url, rtmp_url, resolution, bitrate, audio_channels, show_address_bar });
+    INSERT INTO streams (name, url, rtmp_url, resolution, bitrate, audio_channels, show_address_bar, framerate)
+    VALUES (@name, @url, @rtmp_url, @resolution, @bitrate, @audio_channels, @show_address_bar, @framerate)
+  `).run({ name, url, rtmp_url, resolution, bitrate, audio_channels, show_address_bar, framerate });
 
-const update = (id, { name, url, rtmp_url, resolution, bitrate, audio_channels, show_address_bar }) =>
+const update = (id, { name, url, rtmp_url, resolution, bitrate, audio_channels, show_address_bar, framerate }) =>
   db.prepare(`
     UPDATE streams
     SET name = @name, url = @url, rtmp_url = @rtmp_url,
         resolution = @resolution, bitrate = @bitrate,
-        audio_channels = @audio_channels, show_address_bar = @show_address_bar
+        audio_channels = @audio_channels, show_address_bar = @show_address_bar,
+        framerate = @framerate
     WHERE id = @id
-  `).run({ id, name, url, rtmp_url, resolution, bitrate, audio_channels, show_address_bar });
+  `).run({ id, name, url, rtmp_url, resolution, bitrate, audio_channels, show_address_bar, framerate });
 
 const setStatus = (id, status, display_num = null) =>
   db.prepare('UPDATE streams SET status = ?, display_num = ? WHERE id = ?')

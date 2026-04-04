@@ -399,6 +399,23 @@
 
       <div class="form-row">
         <div class="form-group">
+          <label for="fFramerate">Framerate (fps)</label>
+          <select id="fFramerate">
+            <option value="1">1 fps</option>
+            <option value="5">5 fps</option>
+            <option value="10">10 fps</option>
+            <option value="15">15 fps</option>
+            <option value="20">20 fps</option>
+            <option value="24">24 fps</option>
+            <option value="25">25 fps</option>
+            <option value="30" selected>30 fps</option>
+            <option value="60">60 fps</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
           <label for="fAudio">Audio Channels</label>
           <select id="fAudio">
             <option value="2" selected>Stereo (2ch)</option>
@@ -507,6 +524,7 @@
 
         <div class="card-detail">
           <span class="chip">${esc(s.resolution)}</span>
+          <span class="chip">${s.framerate || 30} fps</span>
           <span class="chip">${s.bitrate} kbps</span>
           <span class="chip">${audioLabel}</span>
           <span class="chip">${addrLabel}</span>
@@ -603,6 +621,7 @@
     document.getElementById('fUrl').value           = stream ? stream.url : '';
     document.getElementById('fRtmp').value          = stream ? stream.rtmp_url : '';
     document.getElementById('fResolution').value    = stream ? stream.resolution : '720p';
+    document.getElementById('fFramerate').value     = stream ? String(stream.framerate || 30) : '30';
     document.getElementById('fBitrate').value       = stream ? stream.bitrate : 2500;
     document.getElementById('fAudio').value         = stream ? String(stream.audio_channels) : '2';
     document.getElementById('fAddressBar').checked  = stream ? !!stream.show_address_bar : false;
@@ -632,6 +651,7 @@
       url:              document.getElementById('fUrl').value,
       rtmp_url:         document.getElementById('fRtmp').value,
       resolution:       document.getElementById('fResolution').value,
+      framerate:        parseInt(document.getElementById('fFramerate').value, 10),
       bitrate:          parseInt(document.getElementById('fBitrate').value, 10),
       audio_channels:   parseInt(document.getElementById('fAudio').value, 10),
       show_address_bar: document.getElementById('fAddressBar').checked,

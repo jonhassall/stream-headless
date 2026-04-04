@@ -326,6 +326,17 @@
     }
 
     .hint { font-size: 0.75rem; color: var(--muted); margin-top: 0.3rem; }
+
+    .card-stats {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .card-stats .uptime-value {
+      color: var(--green);
+      font-variant-numeric: tabular-nums;
+    }
   </style>
 </head>
 <body>
@@ -441,6 +452,26 @@
     return s.length > n ? s.slice(0, n) + '…' : s;
   }
 
+  // ── Uptime ticker ──────────────────────────────────────────────
+  function formatUptime(ms) {
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    return `${m}m ${s}s`;
+  }
+
+  function updateUptimes() {
+    document.querySelectorAll('[data-started-at]').forEach(el => {
+      const started = parseInt(el.dataset.startedAt, 10);
+      const val = el.querySelector('.uptime-value');
+      if (val) val.textContent = formatUptime(Date.now() - started);
+    });
+  }
+
+  setInterval(updateUptimes, 1000);
+
   function renderStreams(streams) {
     const grid = document.getElementById('streamGrid');
     const count = document.getElementById('streamCount');
@@ -481,6 +512,11 @@
           <span class="chip">${addrLabel}</span>
         </div>
 
+        ${running && s.startedAt ? `
+        <div class="card-stats" data-started-at="${s.startedAt}">
+          Live for <span class="uptime-value">…</span>
+        </div>` : ''}
+
         <div class="card-actions">
           ${running
             ? `<button class="btn btn-danger btn-sm" onclick="stopStream(${s.id})">⏹ Stop</button>`
@@ -498,6 +534,7 @@
         </div>
       </div>`;
     }).join('');
+    updateUptimes();
   }
 
   function esc(s) {

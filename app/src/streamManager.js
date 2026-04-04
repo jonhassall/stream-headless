@@ -181,7 +181,7 @@ async function startStream(stream) {
     `localhost:${vncPort}`,
   ]);
 
-  const entry = { slot, xvfb, chromium, ffmpeg, x11vnc, websockify };
+  const entry = { slot, startedAt: Date.now(), xvfb, chromium, ffmpeg, x11vnc, websockify };
   active.set(stream.id, entry);
   db.setStatus(stream.id, 'running', slot);
 
@@ -237,7 +237,7 @@ function getActiveInfo(streamId) {
   const entry = active.get(streamId);
   if (!entry) return null;
   const { wsPort } = slotInfo(entry.slot);
-  return { slot: entry.slot, wsPort };
+  return { slot: entry.slot, wsPort, startedAt: entry.startedAt };
 }
 
 module.exports = { startStream, stopStream, getActiveInfo };

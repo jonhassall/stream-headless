@@ -46,6 +46,10 @@ app.get('/login.html', (req, res) => {
 // Everything below requires authentication
 app.use(requireAuth);
 
+// Used by nginx auth_request to validate the session before proxying VNC WebSockets.
+// requireAuth above returns 401 for unauthenticated requests; this returns 200 for authenticated ones.
+app.get('/api/auth-check', (req, res) => res.sendStatus(200));
+
 // Serve noVNC static files (installed by the novnc apt package)
 if (fs.existsSync(NOVNC_PATH)) {
   app.use('/novnc', express.static(NOVNC_PATH));

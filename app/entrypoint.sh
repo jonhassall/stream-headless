@@ -25,4 +25,9 @@ done
 
 export PULSE_SERVER="unix:$XDG_RUNTIME_DIR/pulse/native"
 
+# Prevent PulseAudio from suspending sinks when idle.
+# Without this, the null sink monitor stops delivering frames to FFmpeg
+# after ~5s of no audio playback, causing silent RTMP disconnects.
+pactl unload-module module-suspend-on-idle 2>/dev/null || true
+
 exec node src/index.js

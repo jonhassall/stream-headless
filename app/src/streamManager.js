@@ -83,8 +83,11 @@ async function startStream(stream) {
 
   cleanLockFiles(display);
 
-  // Load a dedicated PulseAudio null sink for this stream
+  // Load a dedicated PulseAudio null sink for this stream and keep it active.
+  // suspend-sink 0 prevents module-suspend-on-idle from suspending it even if
+  // the web page has no audio — a suspended monitor delivers no frames to FFmpeg.
   tryExec(`pactl load-module module-null-sink sink_name=${sinkName} sink_properties=device.description=${sinkName}`);
+  tryExec(`pactl suspend-sink ${sinkName} 0`);
 
   // 1 — Xvfb
   const xvfb = spawnProc('Xvfb', [
@@ -108,6 +111,14 @@ async function startStream(stream) {
     '--force-device-scale-factor=1',
     `--window-size=${w},${h}`,
     '--window-position=0,0',
+    // Suppress background tasks that can cause instability in long-running headless use
+    '--disable-sync',
+    '--disable-extensions',
+    '--disable-default-apps',
+    '--no-default-browser-check',
+    '--disable-component-update',
+    '--metrics-recording-only',
+    '--safebrowsing-disable-auto-update',
   ];
 
   if (stream.show_address_bar) {
@@ -122,6 +133,9 @@ async function startStream(stream) {
     DISPLAY: display,
     PULSE_SINK: sinkName,
     HOME: '/root',
+    // Override inherited WSL host value — its Windows-format address causes a flood of
+    // "Unknown address type" errors from the dbus client library inside Chromium.
+    DBUS_SESSION_BUS_ADDRESS: 'disabled:',
   });
   await sleep(1200);
 
@@ -132,6 +146,7 @@ async function startStream(stream) {
     // Video: capture Xvfb display
     '-f', 'x11grab',
     '-framerate', '30',
+    '-thread_queue_size', '512',
     '-video_size', `${w}x${h}`,
     '-draw_mouse', '0',
     '-i', `${display}.0`,
@@ -147,7 +162,9 @@ async function startStream(stream) {
     '-preset', 'veryfast',
     '-tune', 'zerolatency',
     '-b:v', `${stream.bitrate}k`,
-    '-g', '60',
+    '-maxrate', `${stream.bitrate}k`,
+    '-bufsize', `${stream.bitrate * 2}k`,
+    '-g', '30',
     // Audio encoding — aresample=async=1 smooths out any remaining timestamp jitter
     '-c:a', 'aac',
     '-af', 'aresample=async=1:min_hard_comp=0.100000:first_pts=0',

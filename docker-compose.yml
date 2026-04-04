@@ -5,7 +5,7 @@ services:
     env_file: .env
     volumes:
       - data:/data
-      - /dev/shm:/dev/shm
+    shm_size: '256m'
     expose:
       - "3000"
       - "6901"

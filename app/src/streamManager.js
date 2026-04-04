@@ -96,11 +96,19 @@ async function startStream(stream) {
   await sleep(600);
 
   // 2 — Chromium
+  // IMPORTANT: call the real binary directly, NOT /usr/bin/chromium.
+  // The Debian wrapper sources /etc/chromium.d/* which injects --enable-gpu-rasterization
+  // (among others). That flag turns on GPU compositing in a container with no GPU,
+  // causing the GPU process to crash on any real page load.
+  const chromiumBin = '/usr/lib/chromium/chromium';
   const chromiumArgs = [
     '--no-sandbox',
     '--test-type',
     '--disable-dev-shm-usage',
     '--disable-gpu',
+    '--disable-gpu-rasterization',  // counteracts /etc/chromium.d/default-flags injection
+    '--disable-software-rasterizer',
+    '--in-process-gpu',             // no separate GPU process that can crash
     '--no-zygote',
     '--no-first-run',
     '--disable-background-timer-throttling',
@@ -111,7 +119,6 @@ async function startStream(stream) {
     '--force-device-scale-factor=1',
     `--window-size=${w},${h}`,
     '--window-position=0,0',
-    // Suppress background tasks that can cause instability in long-running headless use
     '--disable-sync',
     '--disable-extensions',
     '--disable-default-apps',
@@ -122,26 +129,22 @@ async function startStream(stream) {
   ];
 
   if (stream.show_address_bar) {
-    // Normal browser window — address bar visible
     chromiumArgs.push(stream.url);
   } else {
-    // App mode — no address bar, no tabs
     chromiumArgs.push(`--app=${stream.url}`);
   }
 
-  const chromium = spawnProc('chromium', chromiumArgs, {
+  const chromium = spawnProc(chromiumBin, chromiumArgs, {
     DISPLAY: display,
     PULSE_SINK: sinkName,
     HOME: '/root',
-    // Override inherited WSL host value — its Windows-format address causes a flood of
-    // "Unknown address type" errors from the dbus client library inside Chromium.
-    DBUS_SESSION_BUS_ADDRESS: 'disabled:',
+    DBUS_SESSION_BUS_ADDRESS: `unix:path=/tmp/no-dbus-${slot}`,
   });
   await sleep(1200);
 
-  // 3 — FFmpeg
+  // 3 — FFmpeg (with auto-restart on unexpected exit)
   const ac = stream.audio_channels === 1 ? '1' : '2';
-  const ffmpeg = spawnProc('ffmpeg', [
+  const ffmpegArgs = [
     '-loglevel', 'warning',
     // Video: capture Xvfb display
     '-f', 'x11grab',
@@ -151,8 +154,6 @@ async function startStream(stream) {
     '-draw_mouse', '0',
     '-i', `${display}.0`,
     // Audio: capture PulseAudio monitor
-    // -use_wallclock_as_timestamps: prevents backward DTS from the null sink clock
-    // -thread_queue_size: larger buffer reduces dropped/out-of-order audio packets
     '-f', 'pulse',
     '-thread_queue_size', '512',
     '-use_wallclock_as_timestamps', '1',
@@ -164,8 +165,9 @@ async function startStream(stream) {
     '-b:v', `${stream.bitrate}k`,
     '-maxrate', `${stream.bitrate}k`,
     '-bufsize', `${stream.bitrate * 2}k`,
+    '-x264-params', 'nal-hrd=cbr:force-cfr=1',
     '-g', '30',
-    // Audio encoding — aresample=async=1 smooths out any remaining timestamp jitter
+    // Audio encoding
     '-c:a', 'aac',
     '-af', 'aresample=async=1:min_hard_comp=0.100000:first_pts=0',
     '-b:a', '128k',
@@ -174,10 +176,36 @@ async function startStream(stream) {
     // Output
     '-f', 'flv',
     stream.rtmp_url,
-  ], {
-    DISPLAY: display,
-    PULSE_SERVER: process.env.PULSE_SERVER || '',
-  });
+  ];
+  const ffmpegEnv = { DISPLAY: display, PULSE_SERVER: process.env.PULSE_SERVER || '' };
+
+  const MAX_FFMPEG_RESTARTS = 5;
+  let ffmpegRestarts = 0;
+
+  function spawnFFmpeg() {
+    const proc = spawnProc('ffmpeg', ffmpegArgs, ffmpegEnv);
+    proc.on('exit', (code) => {
+      const entry = active.get(stream.id);
+      if (!entry) return; // Intentionally stopped — do nothing
+
+      console.warn(`[stream ${stream.id}] FFmpeg exited with code ${code} (restart ${ffmpegRestarts + 1}/${MAX_FFMPEG_RESTARTS})`);
+
+      if (ffmpegRestarts >= MAX_FFMPEG_RESTARTS) {
+        console.error(`[stream ${stream.id}] FFmpeg hit max restarts — stopping stream`);
+        stopStream(stream.id).catch(() => {});
+        return;
+      }
+
+      ffmpegRestarts++;
+      setTimeout(() => {
+        if (!active.has(stream.id)) return; // Stopped during the delay
+        entry.ffmpeg = spawnFFmpeg();
+      }, 3000);
+    });
+    return proc;
+  }
+
+  const ffmpeg = spawnFFmpeg();
 
   // 4 — x11vnc
   const x11vnc = spawnProc('x11vnc', [
@@ -201,14 +229,6 @@ async function startStream(stream) {
   const entry = { slot, startedAt: Date.now(), xvfb, chromium, ffmpeg, x11vnc, websockify };
   active.set(stream.id, entry);
   db.setStatus(stream.id, 'running', slot);
-
-  // If FFmpeg exits unexpectedly, mark the stream as stopped
-  ffmpeg.on('exit', (code) => {
-    if (active.has(stream.id)) {
-      console.warn(`[stream ${stream.id}] FFmpeg exited with code ${code} — marking stopped`);
-      stopStream(stream.id).catch(() => {});
-    }
-  });
 
   return { slot, display, wsPort };
 }

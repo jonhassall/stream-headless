@@ -1,5 +1,7 @@
 # stream-headless
 
+# WARNING: VIBE CODED LOW QUALITY CRAP
+
 Stream headless Chromium windows with audio to RTMP (Twitch, YouTube, etc.) from a Docker container. Includes a web admin panel and in-browser VNC access per stream.
 
 ## Requirements

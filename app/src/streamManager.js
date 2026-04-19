@@ -68,81 +68,6 @@ function tryExec(cmd) {
 }
 
 // ---------------------------------------------------------------------------
-// Hardware encoder detection (runs once at module load)
-// Priority: NVIDIA NVENC → VAAPI (Intel/AMD) → libx264 (CPU)
-// ---------------------------------------------------------------------------
-
-function detectHWEncoder() {
-  try {
-    const encoders = execSync('ffmpeg -hide_banner -encoders 2>&1', {
-      timeout: 8000,
-      shell: true,
-    }).toString();
-
-    // NVIDIA NVENC — requires /dev/nvidia0 and an NVENC-capable ffmpeg build.
-    // Enable in docker-compose with the NVIDIA runtime (see docker-compose.yml).
-    if (encoders.includes('h264_nvenc') && fs.existsSync('/dev/nvidia0')) {
-      console.log('[encoder] NVIDIA NVENC detected — using h264_nvenc');
-      return 'nvenc';
-    }
-
-    // VAAPI (Intel / AMD) — requires /dev/dri/renderD128.
-    // Enable in docker-compose by passing the /dev/dri device (see docker-compose.yml).
-    if (encoders.includes('h264_vaapi') && fs.existsSync('/dev/dri/renderD128')) {
-      console.log('[encoder] VAAPI device detected — using h264_vaapi');
-      return 'vaapi';
-    }
-  } catch (_) {}
-
-  console.log('[encoder] No GPU encoder available — using libx264 (CPU)');
-  return 'cpu';
-}
-
-const HW_ENCODER = detectHWEncoder();
-
-function buildVideoEncodeArgs(stream, fps) {
-  const { bitrate } = stream;
-  const bufsize = bitrate * 2;
-
-  if (HW_ENCODER === 'nvenc') {
-    return [
-      '-c:v', 'h264_nvenc',
-      '-preset', 'p4',       // balanced quality/speed (p1=fastest … p7=slowest)
-      '-tune', 'ull',        // ultra-low-latency
-      '-rc', 'cbr',
-      '-b:v', `${bitrate}k`,
-      '-maxrate', `${bitrate}k`,
-      '-bufsize', `${bufsize}k`,
-      '-g', String(fps),
-    ];
-  }
-
-  if (HW_ENCODER === 'vaapi') {
-    // Frames are uploaded to GPU via the hwupload filter; -vaapi_device is
-    // injected into the global FFmpeg args (before inputs) in startStream().
-    return [
-      '-c:v', 'h264_vaapi',
-      '-b:v', `${bitrate}k`,
-      '-maxrate', `${bitrate}k`,
-      '-bufsize', `${bufsize}k`,
-      '-g', String(fps),
-    ];
-  }
-
-  // CPU fallback — libx264
-  return [
-    '-c:v', 'libx264',
-    '-preset', 'veryfast',
-    '-tune', 'zerolatency',
-    '-b:v', `${bitrate}k`,
-    '-maxrate', `${bitrate}k`,
-    '-bufsize', `${bufsize}k`,
-    '-x264-params', 'nal-hrd=cbr:force-cfr=1',
-    '-g', String(fps),
-  ];
-}
-
-// ---------------------------------------------------------------------------
 // Start a stream
 // ---------------------------------------------------------------------------
 
@@ -222,8 +147,6 @@ async function startStream(stream) {
   const fps = stream.framerate || 30;
   const ffmpegArgs = [
     '-loglevel', 'warning',
-    // VAAPI global device must appear before the first input
-    ...(HW_ENCODER === 'vaapi' ? ['-vaapi_device', '/dev/dri/renderD128'] : []),
     // Video: capture Xvfb display
     '-f', 'x11grab',
     '-framerate', String(fps),
@@ -236,10 +159,15 @@ async function startStream(stream) {
     '-thread_queue_size', '512',
     '-use_wallclock_as_timestamps', '1',
     '-i', `${sinkName}.monitor`,
-    // Upload frames to GPU memory before VAAPI encoding
-    ...(HW_ENCODER === 'vaapi' ? ['-vf', 'format=nv12,hwupload'] : []),
-    // Video encoding (codec chosen at startup based on GPU availability)
-    ...buildVideoEncodeArgs(stream, fps),
+    // Video encoding
+    '-c:v', 'libx264',
+    '-preset', 'veryfast',
+    '-tune', 'zerolatency',
+    '-b:v', `${stream.bitrate}k`,
+    '-maxrate', `${stream.bitrate}k`,
+    '-bufsize', `${stream.bitrate * 2}k`,
+    '-x264-params', 'nal-hrd=cbr:force-cfr=1',
+    '-g', String(fps),  // keyframe every 1 second
     // Audio encoding
     '-c:a', 'aac',
     '-af', 'aresample=async=1:min_hard_comp=0.100000:first_pts=0',

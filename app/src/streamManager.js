@@ -190,7 +190,7 @@ async function startStream(stream) {
     '--disable-backgrounding-occluded-windows',
     '--disable-renderer-backgrounding',
     '--disable-notifications',
-    '--disable-features=IsolateOrigins,site-per-process,SharedArrayBuffer',
+    '--disable-features=IsolateOrigins,site-per-process,SharedArrayBuffer,MediaSessionService',
     '--force-device-scale-factor=1',
     `--window-size=${w},${h}`,
     '--window-position=0,0',
@@ -213,7 +213,8 @@ async function startStream(stream) {
     DISPLAY: display,
     PULSE_SINK: sinkName,
     HOME: '/root',
-    DBUS_SESSION_BUS_ADDRESS: `unix:path=/tmp/no-dbus-${slot}`,
+    DBUS_SESSION_BUS_ADDRESS: 'disabled:',
+    DBUS_SYSTEM_BUS_ADDRESS: 'disabled:',
   });
   await sleep(1200);
 

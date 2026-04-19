@@ -4,12 +4,6 @@ set -e
 export HOME=/root
 export XDG_RUNTIME_DIR=/run/user/0
 
-# Prevent PulseAudio (and any child process) from spamming DBus-not-found
-# errors. We use a valid socket path format that simply doesn't exist so
-# glib fails silently once rather than printing an error on every call.
-export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/tmp/.no-dbus-system
-export DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/.no-dbus-session
-
 mkdir -p "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
 

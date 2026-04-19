@@ -274,55 +274,12 @@ async function startStream(stream) {
 
   const MAX_FFMPEG_RESTARTS = 5;
   let ffmpegRestarts = 0;
-  // Tracks which encoder is actually being used for this stream instance.
-  // If VAAPI fails at runtime we downgrade to CPU and rebuild the arg list.
-  let activeEncoder = HW_ENCODER;
-
-  function currentFfmpegArgs() {
-    if (activeEncoder === HW_ENCODER) return ffmpegArgs;
-    // Rebuild args with CPU encoder (VAAPI fell back at runtime)
-    return [
-      '-loglevel', 'warning',
-      '-f', 'x11grab',
-      '-framerate', String(fps),
-      '-thread_queue_size', '512',
-      '-video_size', `${w}x${h}`,
-      '-draw_mouse', '0',
-      '-i', `${display}.0`,
-      '-f', 'pulse',
-      '-thread_queue_size', '512',
-      '-use_wallclock_as_timestamps', '1',
-      '-i', `${sinkName}.monitor`,
-      '-c:v', 'libx264',
-      '-preset', 'veryfast',
-      '-tune', 'zerolatency',
-      '-b:v', `${stream.bitrate}k`,
-      '-maxrate', `${stream.bitrate}k`,
-      '-bufsize', `${stream.bitrate * 2}k`,
-      '-x264-params', 'nal-hrd=cbr:force-cfr=1',
-      '-g', String(fps),
-      '-c:a', 'aac',
-      '-af', 'aresample=async=1:min_hard_comp=0.100000:first_pts=0',
-      '-b:a', '128k',
-      '-ar', '44100',
-      '-ac', ac,
-      '-f', 'flv',
-      stream.rtmp_url,
-    ];
-  }
 
   function spawnFFmpeg() {
-    const proc = spawnProc('ffmpeg', currentFfmpegArgs(), ffmpegEnv);
+    const proc = spawnProc('ffmpeg', ffmpegArgs, ffmpegEnv);
     proc.on('exit', (code) => {
       const entry = active.get(stream.id);
       if (!entry) return; // Intentionally stopped — do nothing
-
-      // If a GPU encoder was in use and failed on the very first attempt,
-      // downgrade to CPU so subsequent restarts don't keep hitting the same error.
-      if (code !== 0 && ffmpegRestarts === 0 && activeEncoder !== 'cpu') {
-        console.warn(`[stream ${stream.id}] GPU encoder (${activeEncoder}) failed at runtime — falling back to libx264 (CPU)`);
-        activeEncoder = 'cpu';
-      }
 
       console.warn(`[stream ${stream.id}] FFmpeg exited with code ${code} (restart ${ffmpegRestarts + 1}/${MAX_FFMPEG_RESTARTS})`);
 

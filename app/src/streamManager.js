@@ -86,11 +86,25 @@ function detectHWEncoder() {
       return 'nvenc';
     }
 
-    // VAAPI (Intel / AMD) — requires /dev/dri/renderD128.
-    // Enable in docker-compose by passing the /dev/dri device (see docker-compose.yml).
+    // VAAPI (Intel / AMD) — requires /dev/dri/renderD128 AND a working libva driver.
+    // We do a real test encode rather than just checking the device node, because the
+    // node can exist while the driver is missing or the device is unsupported.
     if (encoders.includes('h264_vaapi') && fs.existsSync('/dev/dri/renderD128')) {
-      console.log('[encoder] VAAPI device detected — using h264_vaapi');
-      return 'vaapi';
+      try {
+        execSync(
+          'ffmpeg -hide_banner -loglevel error' +
+          ' -vaapi_device /dev/dri/renderD128' +
+          ' -f lavfi -i nullsrc=s=16x16:d=0.04' +
+          ' -vf "format=nv12,hwupload"' +
+          ' -c:v h264_vaapi -frames:v 1 -f null -',
+          { timeout: 15000, shell: true, stdio: 'pipe' },
+        );
+        console.log('[encoder] VAAPI probe succeeded — using h264_vaapi');
+        return 'vaapi';
+      } catch (e) {
+        console.warn('[encoder] VAAPI device found but probe failed — falling back to CPU');
+        console.warn(`[encoder] VAAPI error: ${e.stderr ? e.stderr.toString().trim() : e.message}`);
+      }
     }
   } catch (_) {}
 

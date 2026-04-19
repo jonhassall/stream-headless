@@ -14,6 +14,10 @@ RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
+    intel-media-va-driver \
+    i965-va-driver \
+    libva-drm2 \
+    vainfo \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

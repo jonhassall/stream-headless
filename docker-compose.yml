@@ -12,6 +12,26 @@ services:
       - "6902"
       - "6903"
 
+    # ── GPU passthrough — uncomment ONE block to enable hardware encoding ──
+
+    # NVIDIA (h264_nvenc)
+    # Requires the NVIDIA Container Toolkit on the host:
+    #   https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu, video]
+
+    # Intel / AMD (h264_vaapi via VAAPI)
+    # Exposes the DRI render node inside the container.
+    devices:
+      - /dev/dri:/dev/dri
+
+    # ──────────────────────────────────────────────────────────────────────
+
   nginx:
     image: nginx:alpine
     restart: unless-stopped

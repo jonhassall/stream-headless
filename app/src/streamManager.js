@@ -227,13 +227,8 @@ async function startStream(stream) {
     DISPLAY: display,
     PULSE_SINK: sinkName,
     HOME: '/root',
-    // Point both bus addresses at a nonexistent socket path.
-    // This is a valid dbus address format so glib doesn't emit "Could not
-    // parse server address" noise, but the connection will simply fail once
-    // and Chromium will stop retrying. Using "disabled:" is NOT a valid
-    // dbus address and causes a parse error logged on every dbus call.
-    DBUS_SESSION_BUS_ADDRESS: `unix:path=/tmp/.dbus-session-${slot}`,
-    DBUS_SYSTEM_BUS_ADDRESS: `unix:path=/tmp/.dbus-system-${slot}`,
+    DBUS_SESSION_BUS_ADDRESS: 'disabled:',
+    DBUS_SYSTEM_BUS_ADDRESS: 'disabled:',
   });
   await sleep(1200);
 

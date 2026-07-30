@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+until /usr/bin/xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; do
+  sleep 0.25
+done
+
+exec /usr/bin/x11vnc \
+  -display "$DISPLAY" \
+  -rfbauth "$XDG_RUNTIME_DIR/vnc.pass" \
+  -rfbport 5900 \
+  -listen localhost \
+  -forever \
+  -shared \
+  -xkb \
+  -noxrecord \
+  -noxfixes \
+  -noxdamage \
+  -quiet

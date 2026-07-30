@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+until /usr/bin/xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; do
+  sleep 0.25
+done
+
+exec /usr/bin/openbox --sm-disable

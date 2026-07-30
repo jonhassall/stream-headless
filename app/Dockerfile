@@ -1,33 +1,44 @@
-FROM node:20-bookworm
+FROM debian:bookworm-slim
 
-# Install system dependencies
-# Note: chromium must come from Debian apt — Ubuntu's chromium-browser is a snap stub that fails in Docker
-RUN apt-get update && apt-get install -y \
-    chromium \
-    ffmpeg \
-    pulseaudio \
-    pulseaudio-utils \
-    xvfb \
-    x11vnc \
-    novnc \
-    websockify \
-    python3 \
-    make \
-    g++ \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        chromium \
+        ffmpeg \
+        intel-media-va-driver \
+        mesa-va-drivers \
+        novnc \
+        openbox \
+        procps \
+        pulseaudio \
+        pulseaudio-utils \
+        supervisor \
+        websockify \
+        x11-utils \
+        x11vnc \
+        xvfb \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+RUN useradd --create-home --uid 1000 --shell /bin/bash streamer \
+    && mkdir -p /home/streamer/.config/chromium /run/stream \
+    && chown -R streamer:streamer /home/streamer /run/stream
 
-# Install Node.js dependencies
-# better-sqlite3 compiles a native addon — build tools above are required
-COPY package.json ./
-RUN npm install --omit=dev
+COPY entrypoint.sh /usr/local/bin/stream-entrypoint
+COPY scripts/ /usr/local/bin/
+COPY supervisord.conf /etc/supervisor/supervisord.conf
+COPY pulse.pa /etc/pulse/stream.pa
+COPY pulse-client.conf /etc/pulse/client.conf
 
-COPY entrypoint.sh ./
-RUN chmod +x entrypoint.sh
+RUN chmod 0755 \
+        /usr/local/bin/stream-entrypoint \
+        /usr/local/bin/run-browser \
+        /usr/local/bin/run-ffmpeg \
+        /usr/local/bin/run-openbox \
+        /usr/local/bin/run-pulseaudio \
+        /usr/local/bin/run-x11vnc \
+        /usr/local/bin/redact-ffmpeg-log \
+        /usr/local/bin/stream-healthcheck
 
-COPY src/ ./src/
+EXPOSE 6080
 
-EXPOSE 3000 6901 6902 6903
-
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/stream-entrypoint"]

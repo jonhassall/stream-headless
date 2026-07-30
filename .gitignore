@@ -1,15 +1,5 @@
 # Credentials — never commit these
 .env
-app/app.env
-
-# Node
-node_modules/
-npm-debug.log*
-
-# SQLite database
-*.sqlite
-*.sqlite-wal
-*.sqlite-shm
 
 # Docker
 *.log

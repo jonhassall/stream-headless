@@ -1,65 +1,153 @@
 # stream-headless
 
-# WARNING: VIBE CODED LOW QUALITY CRAP
+Run one Chromium window continuously and publish its picture and optional audio
+to an RTMP or RTMPS destination. Everything is configured through `.env`.
 
-Stream headless Chromium windows with audio to RTMP (Twitch, YouTube, etc.) from a Docker container. Includes a web admin panel and in-browser VNC access per stream.
+The container also provides a password-protected noVNC session so the browser
+can be controlled remotely. Browser cookies, logins, and site settings are kept
+in a Docker volume.
 
 ## Requirements
 
-- Docker + Docker Compose
+- Docker Engine with Docker Compose v2
+- A Linux host or Docker Desktop/Engine through WSL2
+- Enough CPU to encode the selected resolution with `libx264`
 
-## Setup
+## Configure
 
-**1. Clone and enter the project directory.**
+Copy the example configuration:
 
-**2. Create your `.env` file:**
-
-```
+```bash
 cp .env.example .env
 ```
 
-Edit `.env` if you want a different port (default: `8080`).
+At minimum, set:
 
-**3. Set your credentials in `.env`:**
+```dotenv
+PAGE_URL=https://example.com/
+RTMP_URL=rtmp://your-provider.example/app/your-stream-key
+VNC_PASSWORD=changeMe
+```
 
-Edit `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `SESSION_SECRET`.
+`VNC_PASSWORD` must contain 6–8 characters. Classic VNC authentication cannot
+use more than the first eight characters, so longer values are rejected rather
+than silently weakened.
 
-**4. Build and start:**
+Available settings:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PAGE_URL` | required | Web page opened in Chromium; must use HTTP or HTTPS |
+| `RTMP_URL` | required | Complete RTMP/RTMPS destination, including stream key |
+| `VNC_PASSWORD` | required | 6–8 character password for browser control |
+| `RESOLUTION` | `1280x720` | Captured browser size |
+| `FRAMERATE` | `30` | Frames per second, from 1–120 |
+| `VIDEO_BITRATE` | `3500k` | FFmpeg video bitrate |
+| `VIDEO_ENCODER` | `auto` | `auto`, `software`, `nvenc`, or `vaapi` |
+| `AUDIO_ENABLED` | `true` | Capture webpage audio; when false, send silent AAC |
+| `AUDIO_BITRATE` | `128k` | AAC bitrate |
+| `CONTROL_BIND` | `0.0.0.0` | Host address on which noVNC is published |
+| `CONTROL_PORT` | `6080` | Host port for noVNC |
+| `RTMP_RETRY_DELAY` | `5` | Seconds between publishing attempts |
+
+## Run
 
 ```bash
 docker compose up -d --build
+docker compose logs -f stream
 ```
 
-**5. Open the panel at `http://your-server-ip:8080`**
+The stream starts automatically. There is no settings UI or start/stop API.
+If the RTMP destination is unavailable, the container keeps the browser alive
+and retries publishing indefinitely.
 
-Log in with your admin credentials.
+### Hardware H.264 encoding
 
-## Usage
+`VIDEO_ENCODER=auto` performs short real encoding probes at the configured
+resolution. It selects NVIDIA NVENC first, then VAAPI for Intel/AMD hardware,
+and otherwise uses CPU-based `libx264`. Merely finding an FFmpeg encoder or
+device node is not considered sufficient—the probe must successfully produce
+H.264 frames.
 
-1. Click **+ New Stream** and fill in:
-   - **Web Page URL** — the page to display in the stream
-   - **RTMP URL** — your stream destination including stream key
-     - Twitch: `rtmp://live.twitch.tv/app/<streamkey>`
-     - YouTube: `rtmp://a.rtmp.youtube.com/live2/<streamkey>`
-   - Resolution, bitrate, audio channels, address bar toggle
+Linux DRM/VAAPI devices are supported by the standard Compose file and safely
+fall back to software when the host has no compatible encoder.
 
-2. Click **▶ Start** to begin streaming.
+NVIDIA requires the NVIDIA Container Toolkit because Docker must inject the
+matching host driver libraries. Start with the included override:
 
-3. Click **🖥 VNC** on a running stream to open a live view of the browser window in your browser — you can click and interact with the page.
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.nvidia.yml \
+  up -d --build
+```
 
-4. Click **⏹ Stop** to end the stream.
+The logs report `Selected H.264 encoder: nvenc`, `vaapi`, or `software` without
+printing the RTMP destination. To require a particular encoder instead of
+falling back, set `VIDEO_ENCODER=nvenc` or `VIDEO_ENCODER=vaapi`; startup remains
+unhealthy and logs a clear probe failure if it cannot be used.
 
-## Persistence
+Open browser control at:
 
-Any stream that is running when the container stops will automatically restart the next time the container starts.
+```text
+http://HOST:6080/vnc.html?autoconnect=1&resize=scale
+```
 
-## Limits
+Use the password from `VNC_PASSWORD` when noVNC prompts for it.
 
-Up to **3 simultaneous streams** with the default config (one per display slot `:11`, `:12`, `:13`). Each stream runs its own Xvfb display, Chromium, FFmpeg, x11vnc, and websockify process.
+To stop:
 
-## Security notes
+```bash
+docker compose down
+```
 
-- Run behind a reverse proxy with TLS (e.g. Caddy, Nginx, Cloudflare) — the container itself serves plain HTTP.
-- Change the default `SESSION_SECRET` and admin credentials before deploying.
-- RTMP stream keys are stored in plaintext in the SQLite database at the Docker volume `/data/db.sqlite`. Use per-stream keys, not account passwords.
-- `--no-sandbox` is required for Chromium inside Docker (no kernel user namespaces). Do not expose the admin panel publicly without TLS + strong credentials.
+The `browser-data` volume is deliberately retained by `docker compose down`.
+This preserves cookies and authenticated sessions. To explicitly discard the
+browser profile, stop the stack first and then run:
+
+```bash
+docker compose down --volumes
+```
+
+## Autoplay and audio
+
+Chromium starts with its autoplay policy disabled, allowing media to play
+without a synthetic or manual mouse click. The container does not inject page
+scripts or generate mouse input.
+
+When `AUDIO_ENABLED=true`, Chromium outputs into a private PulseAudio sink and
+FFmpeg captures that sink. When false, FFmpeg sends a silent stereo AAC track
+instead, which is more broadly compatible with streaming services than a
+video-only FLV stream.
+
+## Reliability
+
+Supervisor independently monitors Xvfb, PulseAudio, Openbox, Chromium, x11vnc,
+noVNC, and the FFmpeg retry loop. Chromium can restart without destroying its
+persistent profile or deliberately stopping the RTMP publisher. Hardware
+encoder selection is repeated whenever the FFmpeg supervisor process itself is
+restarted.
+
+Docker reports the container as healthy only when the display, audio server,
+browser, and an active FFmpeg publishing attempt are present. During an RTMP
+outage the container may be reported as unhealthy while its internal retry loop
+continues working.
+
+Inspect status and logs with:
+
+```bash
+docker compose ps
+docker compose logs --tail=200 stream
+```
+
+## Security
+
+- noVNC is served over plain HTTP. Keep it on a trusted LAN or place it behind
+  a TLS reverse proxy with stronger authentication.
+- To make noVNC local-only, set `CONTROL_BIND=127.0.0.1` and access it through
+  an SSH tunnel.
+- The complete RTMP URL is an environment variable and normally contains a
+  secret stream key. Protect `.env`, do not commit it, and avoid sharing
+  unredacted container inspection output.
+- Chromium uses `--no-sandbox` inside the dedicated container. Do not use this
+  browser for unrelated general-purpose browsing.

@@ -1,0 +1,4 @@
+.fail
+load-module module-native-protocol-unix
+load-module module-null-sink sink_name=stream rate=48000 channels=2 channel_map=front-left,front-right sink_properties=device.description=Stream
+set-default-sink stream

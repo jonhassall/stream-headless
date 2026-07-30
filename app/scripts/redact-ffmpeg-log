@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+import os
+import sys
+
+secret = os.environ.get("RTMP_URL", "")
+
+for line in sys.stdin:
+    if secret:
+        line = line.replace(secret, "[redacted RTMP URL]")
+    sys.stderr.write(line)
+    sys.stderr.flush()

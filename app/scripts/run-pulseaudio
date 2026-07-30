@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+rm -f "$XDG_RUNTIME_DIR/pulse/native" "$XDG_RUNTIME_DIR/pulse/pid"
+
+exec /usr/bin/pulseaudio \
+  --daemonize=no \
+  --disallow-exit \
+  --exit-idle-time=-1 \
+  --file=/etc/pulse/stream.pa \
+  --log-level=warning \
+  --log-target=stderr

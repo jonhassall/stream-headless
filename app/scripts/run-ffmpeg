@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+set -Euo pipefail
+
+until /usr/bin/xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; do
+  sleep 0.25
+done
+
+until [[ -S "$XDG_RUNTIME_DIR/pulse/native" ]] \
+  && /usr/bin/pactl info >/dev/null 2>&1; do
+  sleep 0.25
+done
+
+video_args=(
+  -f x11grab
+  -framerate "$FRAMERATE"
+  -thread_queue_size 1024
+  -video_size "$RESOLUTION"
+  -draw_mouse 0
+  -i "${DISPLAY}.0"
+)
+
+if [[ "$AUDIO_ENABLED" == true ]]; then
+  audio_args=(
+    -f pulse
+    -thread_queue_size 1024
+    -use_wallclock_as_timestamps 1
+    -i stream.monitor
+  )
+else
+  audio_args=(
+    -f lavfi
+    -i anullsrc=channel_layout=stereo:sample_rate=48000
+  )
+fi
+
+keyframe_interval=$((FRAMERATE * 2))
+ffmpeg_pid=
+
+probe_nvenc() {
+  /usr/bin/timeout 10 /usr/bin/ffmpeg \
+    -hide_banner \
+    -nostdin \
+    -loglevel error \
+    -f lavfi \
+    -i "color=size=${RESOLUTION}:rate=${FRAMERATE}" \
+    -frames:v 2 \
+    -vf format=nv12 \
+    -c:v h264_nvenc \
+    -preset p4 \
+    -f null \
+    - >/dev/null 2>&1
+}
+
+probe_vaapi() {
+  [[ -c /dev/dri/renderD128 ]] || return 1
+  /usr/bin/timeout 10 /usr/bin/ffmpeg \
+    -hide_banner \
+    -nostdin \
+    -loglevel error \
+    -vaapi_device /dev/dri/renderD128 \
+    -f lavfi \
+    -i "color=size=${RESOLUTION}:rate=${FRAMERATE}" \
+    -frames:v 2 \
+    -vf format=nv12,hwupload \
+    -c:v h264_vaapi \
+    -f null \
+    - >/dev/null 2>&1
+}
+
+select_video_encoder() {
+  encoder_input_args=()
+
+  case "$VIDEO_ENCODER" in
+    auto)
+      if probe_nvenc; then
+        selected_encoder=nvenc
+      elif probe_vaapi; then
+        selected_encoder=vaapi
+      else
+        selected_encoder=software
+      fi
+      ;;
+    nvenc)
+      probe_nvenc || {
+        printf 'VIDEO_ENCODER=nvenc was requested, but an NVENC encode probe failed.\n' >&2
+        return 1
+      }
+      selected_encoder=nvenc
+      ;;
+    vaapi)
+      probe_vaapi || {
+        printf 'VIDEO_ENCODER=vaapi was requested, but a VAAPI encode probe failed.\n' >&2
+        return 1
+      }
+      selected_encoder=vaapi
+      ;;
+    software)
+      selected_encoder=software
+      ;;
+  esac
+
+  case "$selected_encoder" in
+    nvenc)
+      video_encoder_args=(
+        -vf format=nv12
+        -c:v h264_nvenc
+        -preset p4
+        -tune ll
+        -rc cbr
+        -bf 0
+      )
+      ;;
+    vaapi)
+      encoder_input_args=(-vaapi_device /dev/dri/renderD128)
+      video_encoder_args=(
+        -vf format=nv12,hwupload
+        -c:v h264_vaapi
+        -bf 0
+      )
+      ;;
+    software)
+      video_encoder_args=(
+        -c:v libx264
+        -preset veryfast
+        -tune zerolatency
+        -pix_fmt yuv420p
+      )
+      ;;
+  esac
+
+  printf 'Selected H.264 encoder: %s.\n' "$selected_encoder"
+}
+
+terminate() {
+  if [[ -n "$ffmpeg_pid" ]]; then
+    kill -TERM "$ffmpeg_pid" 2>/dev/null || true
+    wait "$ffmpeg_pid" 2>/dev/null || true
+  fi
+  exit 0
+}
+trap terminate TERM INT
+
+select_video_encoder || exit 78
+
+while true; do
+  printf 'Starting RTMP publisher.\n'
+
+  /usr/bin/ffmpeg \
+    -hide_banner \
+    -nostdin \
+    -loglevel warning \
+    "${encoder_input_args[@]}" \
+    "${video_args[@]}" \
+    "${audio_args[@]}" \
+    -map 0:v:0 \
+    -map 1:a:0 \
+    "${video_encoder_args[@]}" \
+    -b:v "$VIDEO_BITRATE" \
+    -maxrate "$VIDEO_BITRATE" \
+    -bufsize "$VIDEO_BITRATE" \
+    -r "$FRAMERATE" \
+    -g "$keyframe_interval" \
+    -keyint_min "$keyframe_interval" \
+    -sc_threshold 0 \
+    -c:a aac \
+    -b:a "$AUDIO_BITRATE" \
+    -ar 48000 \
+    -ac 2 \
+    -af aresample=async=1:first_pts=0 \
+    -f flv \
+    -flvflags no_duration_filesize \
+    "$RTMP_URL" \
+    2> >(/usr/local/bin/redact-ffmpeg-log) &
+  ffmpeg_pid=$!
+
+  wait "$ffmpeg_pid"
+  exit_code=$?
+  ffmpeg_pid=
+
+  printf 'RTMP publisher exited with status %s; retrying in %s seconds.\n' \
+    "$exit_code" "$RTMP_RETRY_DELAY" >&2
+  sleep "$RTMP_RETRY_DELAY"
+done

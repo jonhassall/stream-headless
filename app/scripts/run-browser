@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+until /usr/bin/xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; do
+  sleep 0.25
+done
+
+until [[ -S "$XDG_RUNTIME_DIR/pulse/native" ]] \
+  && /usr/bin/pactl info >/dev/null 2>&1; do
+  sleep 0.25
+done
+
+# Chromium can leave these locks behind after an unclean container shutdown.
+rm -f \
+  "$HOME/.config/chromium/SingletonCookie" \
+  "$HOME/.config/chromium/SingletonLock" \
+  "$HOME/.config/chromium/SingletonSocket"
+
+exec /usr/bin/chromium \
+  --no-sandbox \
+  --disable-dev-shm-usage \
+  --disable-gpu \
+  --no-first-run \
+  --no-default-browser-check \
+  --disable-session-crashed-bubble \
+  --hide-crash-restore-bubble \
+  --disable-background-networking \
+  --disable-background-timer-throttling \
+  --disable-backgrounding-occluded-windows \
+  --disable-component-update \
+  --disable-renderer-backgrounding \
+  --disable-notifications \
+  --disable-sync \
+  --disable-translate \
+  --disable-features=MediaRouter \
+  --autoplay-policy=no-user-gesture-required \
+  --force-device-scale-factor=1 \
+  --window-position=0,0 \
+  --window-size="$VIDEO_WIDTH,$VIDEO_HEIGHT" \
+  --start-maximized \
+  --user-data-dir="$HOME/.config/chromium" \
+  --app="$PAGE_URL"

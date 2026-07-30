@@ -1,0 +1,5 @@
+services:
+  stream:
+    gpus: all
+    environment:
+      NVIDIA_DRIVER_CAPABILITIES: video,compute,utility

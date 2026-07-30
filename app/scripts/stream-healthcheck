@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+export DISPLAY="${DISPLAY:-:99}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/stream}"
+export PULSE_SERVER="${PULSE_SERVER:-unix:/run/stream/pulse/native}"
+
+for service in dbus xvfb pulseaudio openbox chromium x11vnc novnc ffmpeg; do
+  /usr/bin/supervisorctl -c /etc/supervisor/supervisord.conf status "$service" \
+    | grep -q RUNNING
+done
+
+/usr/bin/xdpyinfo -display "$DISPLAY" >/dev/null 2>&1
+/usr/sbin/runuser -u streamer -- \
+  /usr/bin/env \
+    "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" \
+    "PULSE_SERVER=$PULSE_SERVER" \
+    /usr/bin/pactl info >/dev/null 2>&1
+/usr/bin/pgrep -x ffmpeg >/dev/null
+/usr/bin/pgrep -f '/usr/lib/chromium/chromium|/usr/bin/chromium' >/dev/null

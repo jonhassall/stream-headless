@@ -44,6 +44,7 @@ Available settings:
 | `FRAMERATE` | `30` | Frames per second, from 1–120 |
 | `VIDEO_BITRATE` | `3500k` | FFmpeg video bitrate |
 | `VIDEO_ENCODER` | `auto` | `auto`, `software`, `nvenc`, or `vaapi` |
+| `X264_PRESET` | `veryfast` | Software `libx264` preset; faster presets such as `ultrafast` use less CPU but need more bitrate for equivalent quality |
 | `AUDIO_ENABLED` | `true` | Capture webpage audio; when false, send silent AAC |
 | `AUDIO_BITRATE` | `128k` | AAC bitrate |
 | `CONTROL_BIND` | `0.0.0.0` | Host address on which noVNC is published |

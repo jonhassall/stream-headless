@@ -42,6 +42,7 @@ export RESOLUTION="${RESOLUTION:-1280x720}"
 export FRAMERATE="${FRAMERATE:-30}"
 export VIDEO_BITRATE="${VIDEO_BITRATE:-3500k}"
 export VIDEO_ENCODER="${VIDEO_ENCODER:-auto}"
+export X264_PRESET="${X264_PRESET:-veryfast}"
 export AUDIO_ENABLED="${AUDIO_ENABLED:-true}"
 export AUDIO_BITRATE="${AUDIO_BITRATE:-128k}"
 export CONTROL_BIND="${CONTROL_BIND:-0.0.0.0}"
@@ -63,6 +64,13 @@ require_bitrate AUDIO_BITRATE
 case "${VIDEO_ENCODER,,}" in
   auto|software|nvenc|vaapi) export VIDEO_ENCODER="${VIDEO_ENCODER,,}" ;;
   *) fail "VIDEO_ENCODER must be auto, software, nvenc, or vaapi" ;;
+esac
+
+case "${X264_PRESET,,}" in
+  ultrafast|superfast|veryfast|faster|fast|medium|slow|slower|veryslow|placebo)
+    export X264_PRESET="${X264_PRESET,,}"
+    ;;
+  *) fail "X264_PRESET must be a valid libx264 preset such as veryfast or ultrafast" ;;
 esac
 
 case "${AUDIO_ENABLED,,}" in

@@ -121,7 +121,7 @@ select_video_encoder() {
     software)
       video_encoder_args=(
         -c:v libx264
-        -preset veryfast
+        -preset "$X264_PRESET"
         -tune zerolatency
         -pix_fmt yuv420p
       )

@@ -50,6 +50,7 @@ Available settings:
 | `CONTROL_BIND` | `0.0.0.0` | Host address on which noVNC is published |
 | `CONTROL_PORT` | `6080` | Host port for noVNC |
 | `RTMP_RETRY_DELAY` | `5` | Seconds between publishing attempts |
+| `BROWSER_RESTART_INTERVAL_SECONDS` | `0` | Restart Chromium after this many seconds; `0` leaves it running indefinitely |
 
 ## Run
 
@@ -61,6 +62,10 @@ docker compose logs -f stream
 The stream starts automatically. There is no settings UI or start/stop API.
 If the RTMP destination is unavailable, the container keeps the browser alive
 and retries publishing indefinitely.
+
+When `BROWSER_RESTART_INTERVAL_SECONDS` is positive, Chromium is deliberately
+restarted on that interval to limit browser memory growth. The captured stream
+can be briefly interrupted while Chromium starts again.
 
 ### Hardware H.264 encoding
 

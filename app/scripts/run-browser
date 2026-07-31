@@ -16,7 +16,7 @@ rm -f \
   "$HOME/.config/chromium/SingletonLock" \
   "$HOME/.config/chromium/SingletonSocket"
 
-exec /usr/bin/chromium \
+chromium_args=(
   --no-sandbox \
   --disable-dev-shm-usage \
   --disable-gpu \
@@ -40,3 +40,15 @@ exec /usr/bin/chromium \
   --start-maximized \
   --user-data-dir="$HOME/.config/chromium" \
   --app="$PAGE_URL"
+)
+
+if (( BROWSER_RESTART_INTERVAL_SECONDS > 0 )); then
+  printf 'Chromium will restart every %s seconds.\n' "$BROWSER_RESTART_INTERVAL_SECONDS"
+  exec /usr/bin/timeout \
+    --foreground \
+    --signal=TERM \
+    "$BROWSER_RESTART_INTERVAL_SECONDS" \
+    /usr/bin/chromium "${chromium_args[@]}"
+fi
+
+exec /usr/bin/chromium "${chromium_args[@]}"

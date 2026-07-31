@@ -29,6 +29,13 @@ require_bitrate() {
     || fail "${name} must be a positive FFmpeg bitrate such as 3500k"
 }
 
+require_nonnegative_integer() {
+  local name="$1"
+  local value="${!name}"
+
+  [[ "$value" =~ ^[0-9]+$ ]] || fail "${name} must be a non-negative integer"
+}
+
 require_value PAGE_URL
 require_value RTMP_URL
 require_value VNC_PASSWORD
@@ -48,6 +55,7 @@ export AUDIO_BITRATE="${AUDIO_BITRATE:-128k}"
 export CONTROL_BIND="${CONTROL_BIND:-0.0.0.0}"
 export CONTROL_PORT="${CONTROL_PORT:-6080}"
 export RTMP_RETRY_DELAY="${RTMP_RETRY_DELAY:-5}"
+export BROWSER_RESTART_INTERVAL_SECONDS="${BROWSER_RESTART_INTERVAL_SECONDS:-0}"
 
 [[ "$RESOLUTION" =~ ^([0-9]+)x([0-9]+)$ ]] \
   || fail "RESOLUTION must use WIDTHxHEIGHT syntax"
@@ -58,6 +66,7 @@ require_integer_between VIDEO_HEIGHT 240 4320
 require_integer_between FRAMERATE 1 120
 require_integer_between CONTROL_PORT 1 65535
 require_integer_between RTMP_RETRY_DELAY 1 300
+require_nonnegative_integer BROWSER_RESTART_INTERVAL_SECONDS
 require_bitrate VIDEO_BITRATE
 require_bitrate AUDIO_BITRATE
 

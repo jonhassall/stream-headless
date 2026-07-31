@@ -145,7 +145,11 @@ select_video_encoder || exit 78
 while true; do
   printf 'Starting RTMP publisher.\n'
 
-  /usr/bin/ffmpeg \
+  /usr/bin/timeout \
+    --foreground \
+    --signal=INT \
+    "$STREAM_MAX_DURATION_SECONDS" \
+    /usr/bin/ffmpeg \
     -hide_banner \
     -nostdin \
     -loglevel warning \
@@ -177,7 +181,13 @@ while true; do
   exit_code=$?
   ffmpeg_pid=
 
-  printf 'RTMP publisher exited with status %s; retrying in %s seconds.\n' \
-    "$exit_code" "$RTMP_RETRY_DELAY" >&2
-  sleep "$RTMP_RETRY_DELAY"
+  if (( exit_code == 124 )); then
+    printf 'RTMP publisher reached its %s-second duration limit; restarting in 120 seconds.\n' \
+      "$STREAM_MAX_DURATION_SECONDS" >&2
+    sleep 120
+  else
+    printf 'RTMP publisher exited with status %s; retrying in %s seconds.\n' \
+      "$exit_code" "$RTMP_RETRY_DELAY" >&2
+    sleep "$RTMP_RETRY_DELAY"
+  fi
 done

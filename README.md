@@ -51,6 +51,7 @@ Available settings:
 | `CONTROL_PORT` | `6080` | Host port for noVNC |
 | `RTMP_RETRY_DELAY` | `5` | Seconds between publishing attempts |
 | `BROWSER_RESTART_INTERVAL_SECONDS` | `0` | Restart Chromium after this many seconds; `0` leaves it running indefinitely |
+| `STREAM_MAX_DURATION_SECONDS` | `172200` | Maximum RTMP publishing session length in seconds (47 hours 50 minutes) |
 
 ## Run
 
@@ -66,6 +67,12 @@ and retries publishing indefinitely.
 When `BROWSER_RESTART_INTERVAL_SECONDS` is positive, Chromium is deliberately
 restarted on that interval to limit browser memory growth. The captured stream
 can be briefly interrupted while Chromium starts again.
+
+Each RTMP publishing session is limited by `STREAM_MAX_DURATION_SECONDS`. Once
+it reaches that duration, only FFmpeg stops; Chromium and noVNC remain running.
+The publisher waits two minutes before opening a fresh RTMP session. This
+planned restart is separate from `RTMP_RETRY_DELAY`, which applies only when a
+publishing attempt ends unexpectedly.
 
 ### Hardware H.264 encoding
 

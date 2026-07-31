@@ -36,6 +36,14 @@ require_nonnegative_integer() {
   [[ "$value" =~ ^[0-9]+$ ]] || fail "${name} must be a non-negative integer"
 }
 
+require_positive_integer() {
+  local name="$1"
+  local value="${!name}"
+
+  [[ "$value" =~ ^[0-9]+$ ]] && (( value > 0 )) \
+    || fail "${name} must be a positive integer"
+}
+
 require_value PAGE_URL
 require_value RTMP_URL
 require_value VNC_PASSWORD
@@ -56,6 +64,7 @@ export CONTROL_BIND="${CONTROL_BIND:-0.0.0.0}"
 export CONTROL_PORT="${CONTROL_PORT:-6080}"
 export RTMP_RETRY_DELAY="${RTMP_RETRY_DELAY:-5}"
 export BROWSER_RESTART_INTERVAL_SECONDS="${BROWSER_RESTART_INTERVAL_SECONDS:-0}"
+export STREAM_MAX_DURATION_SECONDS="${STREAM_MAX_DURATION_SECONDS:-172200}"
 
 [[ "$RESOLUTION" =~ ^([0-9]+)x([0-9]+)$ ]] \
   || fail "RESOLUTION must use WIDTHxHEIGHT syntax"
@@ -67,6 +76,7 @@ require_integer_between FRAMERATE 1 120
 require_integer_between CONTROL_PORT 1 65535
 require_integer_between RTMP_RETRY_DELAY 1 300
 require_nonnegative_integer BROWSER_RESTART_INTERVAL_SECONDS
+require_positive_integer STREAM_MAX_DURATION_SECONDS
 require_bitrate VIDEO_BITRATE
 require_bitrate AUDIO_BITRATE
 
